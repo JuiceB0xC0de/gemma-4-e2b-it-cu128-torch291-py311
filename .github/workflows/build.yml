@@ -1,0 +1,111 @@
+name: build gemma-4-e2b-it-base
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      push_image:
+        description: Push the built image to Docker Hub
+        type: boolean
+        default: true
+
+env:
+  IMAGE: juiceboxdocks/gemma-4-e2b-it-base
+  VERSION_TAG: cu128-torch291-py311
+  GEMMA_ATTN_SHA: c6a0cf860612792597382e7745d1514a52d6ca58
+  SAE_TRAINER_SHA: 319ba616e4562d98cd3603fd6551dfcf86393308
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        run: |
+          set -eux
+          df -h /
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Run repository contract tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push_image)
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Derive image metadata
+        id: meta
+        shell: bash
+        run: |
+          short_sha="$(git rev-parse --short=12 HEAD)"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:${VERSION_TAG}"
+            echo "${IMAGE}:${VERSION_TAG}-${short_sha}"
+            echo "${IMAGE}:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          build-args: |
+            GEMMA_ATTN_SHA=${{ env.GEMMA_ATTN_SHA }}
+            SAE_TRAINER_SHA=${{ env.SAE_TRAINER_SHA }}
+          provenance: false
+          sbom: false
+          push: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push_image) }}
+          tags: |
+            juiceboxdocks/gemma-4-e2b-it-base:latest
+            juiceboxdocks/gemma-4-e2b-it-base:cu128-torch291-py311
+            juiceboxdocks/gemma-4-e2b-it-base:cu128-torch291-py311-${{ steps.meta.outputs.short_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Report
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### gemma-4-e2b-it-base"
+            echo
+            echo "Platform: \`linux/amd64\`"
+            echo
+            echo "Source pins:"
+            echo "- gemma-triton-flash-attn: \`${GEMMA_ATTN_SHA}\`"
+            echo "- event-aware-SAE-trainer: \`${SAE_TRAINER_SHA}\`"
+            echo
+            echo "Tags:"
+            echo '```text'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+            echo
+            echo '```bash'
+            echo "docker pull ${IMAGE}:${VERSION_TAG}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

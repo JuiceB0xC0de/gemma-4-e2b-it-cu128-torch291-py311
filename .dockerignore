@@ -1,0 +1,9 @@
+**
+!Dockerfile
+!requirements.txt
+!constraints-cu128.txt
+!README.md
+!LICENSE
+!THIRD_PARTY_NOTICES.md
+!scripts/
+!scripts/*.py

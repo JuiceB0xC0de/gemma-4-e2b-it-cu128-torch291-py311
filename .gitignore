@@ -1,1 +1,8 @@
-/docs/superpowers/specs/2026-08-24-gemma-4-e2b-it-image-design.md
+/docs/superpowers/
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+dist/
+build/
