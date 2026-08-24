@@ -129,7 +129,9 @@ class WorkflowContractTests(unittest.TestCase):
             "juiceboxdocks/gemma-4-e2b-it-base:cu128-torch291-py311", workflow
         )
         self.assertIn("cu128-torch291-py311-${{ steps.meta.outputs.short_sha }}", workflow)
-        self.assertIn("DOCKERHUB_USERNAME", workflow)
+        self.assertIn("Derive Docker Hub username", workflow)
+        self.assertIn("IMAGE must be in the format namespace/name", workflow)
+        self.assertIn("${IMAGE%%/*}", workflow)
         self.assertIn("DOCKERHUB_TOKEN", workflow)
         self.assertIn("provenance: false", workflow)
         self.assertIn("sbom: false", workflow)
