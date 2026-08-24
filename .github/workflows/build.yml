@@ -49,8 +49,13 @@ jobs:
 
       - name: Derive Docker Hub username
         id: dockerhub
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push_image)
         shell: bash
         run: |
+          if [[ "${IMAGE}" != */* ]]; then
+            echo "IMAGE must be in the format namespace/name, got: ${IMAGE}" >&2
+            exit 1
+          fi
           echo "username=${IMAGE%%/*}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
